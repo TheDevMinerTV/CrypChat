@@ -1,0 +1,6 @@
+export enum EWSState {
+	CREATED,
+    HANDSHAKE_STARTED,
+    HANDSHAKE_VALIDATED,
+	READY
+}
