@@ -88,6 +88,10 @@ export class CryptoClient {
 		this.log(`Handshake completed with ${PERSON(person)}`);
 	}
 
+	generateIV() {
+		return Crypto.randomBytes(16);
+	}
+
 	encrypt(person: string, data: string) {
 		const secret = this.secrets.get(person);
 
@@ -96,15 +100,15 @@ export class CryptoClient {
 		}
 
 		const key = Crypto.createHash('sha256').update(secret).digest();
-		const iv = new Uint8Array(16);
+		const iv = this.generateIV();
 
 		const cipher = Crypto.createCipheriv('aes-256-cbc', key, iv);
 
-		const enc = cipher.update(data, 'utf-8', 'hex') + cipher.final('hex');
+		const encrypted = cipher.update(data, 'utf-8', 'hex') + cipher.final('hex');
 
-		this.log(`Encrypted "${DECRYPTED(data)}" for ${PERSON(person)}: ${ENCRYPTED(enc)}`);
+		this.log(`Encrypted "${DECRYPTED(data)}" for ${PERSON(person)}: ${ENCRYPTED(encrypted)}`);
 
-		return enc;
+		return { encrypted, iv: iv.toString('hex') };
 	}
 
 	encryptStream(person: string, stream: Stream.Readable, compress = false) {
@@ -115,7 +119,7 @@ export class CryptoClient {
 		}
 
 		const key = Crypto.createHash('sha256').update(secret).digest();
-		const iv = new Uint8Array(16);
+		const iv = this.generateIV();
 
 		const cipher = Crypto.createCipheriv('aes-256-cbc', key, iv);
 
@@ -127,20 +131,20 @@ export class CryptoClient {
 			stream.pipe(cipher);
 		}
 
-		return cipher;
+		return { stream: cipher, iv: iv.toString('hex') };
 	}
 
 	encryptFile(person: string, path: string, compress = false) {
 		const stream = FS.createReadStream(path);
 
-		const cipher = this.encryptStream(person, stream, compress);
+		const { stream: cipher, iv } = this.encryptStream(person, stream, compress);
 
 		cipher.once('end', () => this.log(`Encrypted file at ${ENCRYPTED(path)} for ${PERSON(person)}`));
 
-		return cipher;
+		return { stream: cipher, iv };
 	}
 
-	decrypt(person: string, data: string) {
+	decrypt(person: string, data: string, iv: string) {
 		const secret = this.secrets.get(person);
 
 		if (!secret) {
@@ -148,9 +152,8 @@ export class CryptoClient {
 		}
 
 		const key = Crypto.createHash('sha256').update(secret).digest();
-		const iv = new Uint8Array(16);
 
-		const decipher = Crypto.createDecipheriv('aes-256-cbc', key, iv);
+		const decipher = Crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(iv, 'hex'));
 
 		const dec = decipher.update(data, 'hex', 'utf-8') + decipher.final('utf-8');
 
@@ -159,7 +162,7 @@ export class CryptoClient {
 		return dec;
 	}
 
-	decryptStream(person: string, stream: Stream.Readable, compressed = false) {
+	decryptStream(person: string, stream: Stream.Readable, iv: string, compressed = false) {
 		const secret = this.secrets.get(person);
 
 		if (!secret) {
@@ -167,9 +170,8 @@ export class CryptoClient {
 		}
 
 		const key = Crypto.createHash('sha256').update(secret).digest();
-		const iv = new Uint8Array(16);
 
-		const decipher = Crypto.createDecipheriv('aes-256-cbc', key, iv);
+		const decipher = Crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(iv, 'hex'));
 
 		decipher.once('end', () => this.log(`Decrypted stream from ${PERSON(person)}`));
 
@@ -182,8 +184,8 @@ export class CryptoClient {
 		return str;
 	}
 
-	decryptFile(person: string, stream: Stream.Readable, path: string, compressed = false) {
-		const decipherStream = this.decryptStream(person, stream, compressed);
+	decryptFile(person: string, stream: Stream.Readable, path: string, iv: string, compressed = false) {
+		const decipherStream = this.decryptStream(person, stream, iv, compressed);
 
 		const writeStream = FS.createWriteStream(path);
 

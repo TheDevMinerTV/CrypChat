@@ -33,7 +33,7 @@ Explanation of the configuration:
 - [ ] PeerManager
   - [ ] Proxy sent messages to all other peers
 - [ ] CryptoClient
-  - [ ] Generate IV
+  - [x] Generate IV
   - [ ] Use ECIES
 - [ ] CLI
   - [ ] Send chat messages

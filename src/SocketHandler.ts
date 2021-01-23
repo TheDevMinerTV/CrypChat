@@ -146,10 +146,15 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 
 			const s: ISignedWSMessage = JSON.parse(signedData);
 
-			let data =
-				this._state === EWSState.READY
-					? this.client.decrypt(this.socketId, s.message)
-					: Buffer.from(s.message, 'hex').toString();
+			let data: string;
+
+			if (this._state === EWSState.READY) {
+				const [iv, encryptedMessage] = s.message.split(':');
+
+				data = this.client.decrypt(this.socketId, encryptedMessage, iv);
+			} else {
+				data = Buffer.from(s.message, 'hex').toString();
+			}
 
 			j = JSON.parse(data);
 
@@ -247,11 +252,14 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 
 					this.emit('handshakeStarted');
 
+					const encrypted = this.client.encrypt(this.socketId, 'cryptoverification');
+
 					this.send({
 						command: EWSCommand.HANDSHAKE_VERIFICATION,
 						data: {
 							success: true,
-							verification: this.client.encrypt(this.socketId, 'cryptoverification')
+							verification: encrypted.encrypted,
+							iv: encrypted.iv
 						}
 					});
 				} catch (error) {
@@ -271,7 +279,7 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 				}
 
 				try {
-					const verificationDecrypted = this.client.decrypt(this.socketId, j.data.verification);
+					const verificationDecrypted = this.client.decrypt(this.socketId, j.data.verification, j.data.iv);
 
 					if (verificationDecrypted !== 'cryptoverification') {
 						throw new Error('VERIFICATION_INVALID');
@@ -398,8 +406,15 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 			this.log(`[<] ${EWSCommand[j.command]}: ${JSON.stringify(j.data)}`);
 		}
 
-		const msg =
-			this.state === EWSState.READY ? this.client.encrypt(this.socketId, m) : Buffer.from(m).toString('hex');
+		let msg: string;
+
+		if (this.state === EWSState.READY) {
+			const encrypted = this.client.encrypt(this.socketId, m);
+
+			msg = `${encrypted.iv}:${encrypted.encrypted}`;
+		} else {
+			msg = Buffer.from(m).toString('hex');
+		}
 
 		this.ws.send(
 			Buffer.from(
