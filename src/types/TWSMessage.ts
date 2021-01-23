@@ -29,7 +29,7 @@ type THandshakeMessage = IDecryptedWSMessage<
 
 type THandshakeVerificationMessage = IFailableBaseMessage<
 	EWSCommand.HANDSHAKE_VERIFICATION,
-	{ verification: string; iv: string }
+	{ verification: string; iv: string; tag: string }
 >;
 
 type THandshakeAckMessage = IFailableBaseMessage<EWSCommand.HANDSHAKE_ACK>;

@@ -149,9 +149,9 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 			let data: string;
 
 			if (this._state === EWSState.READY) {
-				const [iv, encryptedMessage] = s.message.split(':');
+				const [iv, tag, encryptedMessage] = s.message.split(':');
 
-				data = this.client.decrypt(this.socketId, encryptedMessage, iv);
+				data = this.client.decrypt(this.socketId, encryptedMessage, iv, tag);
 			} else {
 				data = Buffer.from(s.message, 'hex').toString();
 			}
@@ -259,7 +259,8 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 						data: {
 							success: true,
 							verification: encrypted.encrypted,
-							iv: encrypted.iv
+							iv: encrypted.iv,
+							tag: encrypted.tag
 						}
 					});
 				} catch (error) {
@@ -279,7 +280,12 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 				}
 
 				try {
-					const verificationDecrypted = this.client.decrypt(this.socketId, j.data.verification, j.data.iv);
+					const verificationDecrypted = this.client.decrypt(
+						this.socketId,
+						j.data.verification,
+						j.data.iv,
+						j.data.tag
+					);
 
 					if (verificationDecrypted !== 'cryptoverification') {
 						throw new Error('VERIFICATION_INVALID');
@@ -411,7 +417,7 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 		if (this.state === EWSState.READY) {
 			const encrypted = this.client.encrypt(this.socketId, m);
 
-			msg = `${encrypted.iv}:${encrypted.encrypted}`;
+			msg = [encrypted.iv, encrypted.tag, encrypted.encrypted].join(':');
 		} else {
 			msg = Buffer.from(m).toString('hex');
 		}

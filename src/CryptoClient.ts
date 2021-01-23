@@ -102,13 +102,13 @@ export class CryptoClient {
 		const key = Crypto.createHash('sha256').update(secret).digest();
 		const iv = this.generateIV();
 
-		const cipher = Crypto.createCipheriv('aes-256-cbc', key, iv);
+		const cipher = Crypto.createCipheriv('aes-256-gcm', key, iv);
 
 		const encrypted = cipher.update(data, 'utf-8', 'hex') + cipher.final('hex');
 
 		this.log(`Encrypted "${DECRYPTED(data)}" for ${PERSON(person)}: ${ENCRYPTED(encrypted)}`);
 
-		return { encrypted, iv: iv.toString('hex') };
+		return { encrypted, iv: iv.toString('hex'), tag: cipher.getAuthTag().toString('hex') };
 	}
 
 	encryptStream(person: string, stream: Stream.Readable, compress = false) {
@@ -121,7 +121,7 @@ export class CryptoClient {
 		const key = Crypto.createHash('sha256').update(secret).digest();
 		const iv = this.generateIV();
 
-		const cipher = Crypto.createCipheriv('aes-256-cbc', key, iv);
+		const cipher = Crypto.createCipheriv('aes-256-gcm', key, iv);
 
 		stream.once('end', () => this.log(`Encrypted stream for ${PERSON(person)}`));
 
@@ -131,7 +131,7 @@ export class CryptoClient {
 			stream.pipe(cipher);
 		}
 
-		return { stream: cipher, iv: iv.toString('hex') };
+		return { stream: cipher, iv: iv.toString('hex'), tag: cipher.getAuthTag().toString('hex') };
 	}
 
 	encryptFile(person: string, path: string, compress = false) {
@@ -141,10 +141,10 @@ export class CryptoClient {
 
 		cipher.once('end', () => this.log(`Encrypted file at ${ENCRYPTED(path)} for ${PERSON(person)}`));
 
-		return { stream: cipher, iv };
+		return { stream: cipher, iv, tag: cipher.getAuthTag().toString('hex') };
 	}
 
-	decrypt(person: string, data: string, iv: string) {
+	decrypt(person: string, data: string, iv: string, tag: string) {
 		const secret = this.secrets.get(person);
 
 		if (!secret) {
@@ -153,7 +153,9 @@ export class CryptoClient {
 
 		const key = Crypto.createHash('sha256').update(secret).digest();
 
-		const decipher = Crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(iv, 'hex'));
+		const decipher = Crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+
+		decipher.setAuthTag(Buffer.from(tag, 'hex'));
 
 		const dec = decipher.update(data, 'hex', 'utf-8') + decipher.final('utf-8');
 
@@ -162,7 +164,7 @@ export class CryptoClient {
 		return dec;
 	}
 
-	decryptStream(person: string, stream: Stream.Readable, iv: string, compressed = false) {
+	decryptStream(person: string, stream: Stream.Readable, iv: string, tag: string, compressed = false) {
 		const secret = this.secrets.get(person);
 
 		if (!secret) {
@@ -171,7 +173,9 @@ export class CryptoClient {
 
 		const key = Crypto.createHash('sha256').update(secret).digest();
 
-		const decipher = Crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(iv, 'hex'));
+		const decipher = Crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+
+		decipher.setAuthTag(Buffer.from(tag, 'hex'));
 
 		decipher.once('end', () => this.log(`Decrypted stream from ${PERSON(person)}`));
 
@@ -184,8 +188,15 @@ export class CryptoClient {
 		return str;
 	}
 
-	decryptFile(person: string, stream: Stream.Readable, path: string, iv: string, compressed = false) {
-		const decipherStream = this.decryptStream(person, stream, iv, compressed);
+	decryptFile(
+		person: string,
+		stream: Stream.Readable,
+		path: string,
+		iv: string,
+		tag: string,
+		compressed = false
+	) {
+		const decipherStream = this.decryptStream(person, stream, iv, compressed, tag);
 
 		const writeStream = FS.createWriteStream(path);
 
