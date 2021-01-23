@@ -185,7 +185,7 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 			return this.log(Chalk.red(error));
 		}
 
-		// this.log(`[>] ${EWSOperator[j.op]}: ${JSON.stringify(j.d)}`);
+		// this.log(`[>] ${EWSCommand[j.command]}: ${JSON.stringify(j.data)}`);
 
 		if (!(j.data.success === true || j.data.success === undefined)) {
 			this.log(ERROR(j.data.error));
