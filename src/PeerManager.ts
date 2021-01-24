@@ -1,5 +1,6 @@
 import Chalk from 'chalk';
 import { FastifyInstance } from 'fastify';
+import { IncomingMessage } from 'http';
 import WebSocket from 'ws';
 import { CryptoClient } from './CryptoClient';
 import { SocketHandler } from './SocketHandler';
@@ -19,7 +20,7 @@ export class PeerManager {
 	protected readonly client: CryptoClient;
 	protected readonly wsServer: WebSocket.Server;
 	protected readonly httpServer: FastifyInstance;
-	protected readonly peers: Map<string, SocketHandler>;
+	protected readonly peers = new Map<string, SocketHandler>();
 
 	public readonly urlToSocketId = new Map<string, string>();
 	public readonly idToSocketId = new Map<string, string>();
@@ -28,7 +29,6 @@ export class PeerManager {
 		this.wsServer = context.wsServer;
 		this.httpServer = context.httpServer;
 		this.client = context.client;
-		this.peers = context.peers;
 
 		this.logActiveConnections();
 		setInterval(() => this.logActiveConnections(), 30 * 1000);
@@ -58,6 +58,25 @@ export class PeerManager {
 		}
 
 		return this.instance;
+	}
+
+	handleConnection(ws: WebSocket, req: IncomingMessage) {
+		const context = new PeerContext(
+			this.client,
+			ws,
+			this.wsServer,
+			this.httpServer,
+			req.socket.remoteAddress,
+			req.socket.remotePort
+		);
+
+		const handler = new SocketHandler(context, true);
+
+		ws.on('open', () =>
+			this.log(SUCCESS(`Connection from ${WS(`${context.ip}:${context.port}`)} was opened`))
+		);
+
+		this.peers.set(context.socketId, handler);
 	}
 
 	connectToPeer(url: string, type: 'seed'): void;
@@ -103,7 +122,6 @@ export class PeerManager {
 			ws,
 			this.wsServer,
 			this.httpServer,
-			this.peers,
 			remote.shift() as string,
 			parseInt(remote.shift() as string),
 			id,

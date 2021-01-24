@@ -28,7 +28,6 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 	protected readonly ws: WebSocket;
 	protected readonly wsServer: WebSocket.Server;
 	protected readonly httpServer: FastifyInstance;
-	protected readonly peers: Map<string, SocketHandler>;
 
 	readonly socketId: string;
 	readonly ip: string;
@@ -57,7 +56,6 @@ export class SocketHandler extends (EventEmitter as { new (): TSocketHandlerEmit
 		this.socketId = context.socketId;
 		this.wsServer = context.wsServer;
 		this.httpServer = context.httpServer;
-		this.peers = context.peers;
 		this.ip = context.ip;
 		this.port = context.port;
 
