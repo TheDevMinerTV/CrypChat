@@ -196,7 +196,7 @@ export class CryptoClient {
 		tag: string,
 		compressed = false
 	) {
-		const decipherStream = this.decryptStream(person, stream, iv, compressed, tag);
+		const decipherStream = this.decryptStream(person, stream, iv, tag, compressed);
 
 		const writeStream = FS.createWriteStream(path);
 
