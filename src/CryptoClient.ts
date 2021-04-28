@@ -11,6 +11,8 @@ const ENCRYPTED = Chalk.bold.red;
 const DECRYPTED = Chalk.bold.blue;
 const CRYPTO = Chalk.bold.hex('#FFA500');
 
+const SALT = 'TESTING4_SCIENCE'
+
 export class CryptoClient {
 	secrets = new Map<string, Buffer>();
 	publics = new Map<Buffer, string>();
@@ -89,7 +91,7 @@ export class CryptoClient {
 	}
 
 	generateIV() {
-		return Crypto.randomBytes(16);
+		return Crypto.randomBytes(12);
 	}
 
 	encrypt(person: string, data: string) {
@@ -99,10 +101,10 @@ export class CryptoClient {
 			throw new Error('A handshake with this person has not been completed yet');
 		}
 
-		const key = Crypto.createHash('sha256').update(secret).digest();
+		const key = Crypto.pbkdf2Sync(secret, SALT, 12, 32, 'sha256')
 		const iv = this.generateIV();
 
-		const cipher = Crypto.createCipheriv('aes-256-gcm', key, iv);
+		const cipher = Crypto.createCipheriv('chacha20-poly1305', key, iv, { authTagLength: 16 });
 
 		const encrypted = cipher.update(data, 'utf-8', 'hex') + cipher.final('hex');
 
@@ -118,10 +120,10 @@ export class CryptoClient {
 			throw new Error('A handshake with this person has not been completed yet');
 		}
 
-		const key = Crypto.createHash('sha256').update(secret).digest();
+		const key = Crypto.pbkdf2Sync(secret, SALT, 12, 32, 'sha256')
 		const iv = this.generateIV();
 
-		const cipher = Crypto.createCipheriv('aes-256-gcm', key, iv);
+		const cipher = Crypto.createCipheriv('chacha20-poly1305', key, iv, { authTagLength: 16 });
 
 		stream.once('end', () => this.log(`Encrypted stream for ${PERSON(person)}`));
 
@@ -151,9 +153,9 @@ export class CryptoClient {
 			throw new Error('A handshake with this person has not been completed yet');
 		}
 
-		const key = Crypto.createHash('sha256').update(secret).digest();
+		const key = Crypto.pbkdf2Sync(secret, SALT, 12, 32, 'sha256')
 
-		const decipher = Crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+		const decipher = Crypto.createDecipheriv('chacha20-poly1305', key, Buffer.from(iv, 'hex'), { authTagLength: 16 });
 
 		decipher.setAuthTag(Buffer.from(tag, 'hex'));
 
@@ -171,9 +173,9 @@ export class CryptoClient {
 			throw new Error('A handshake with this person has not been completed yet');
 		}
 
-		const key = Crypto.createHash('sha256').update(secret).digest();
+		const key = Crypto.pbkdf2Sync(secret, SALT, 12, 32, 'sha256')
 
-		const decipher = Crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
+		const decipher = Crypto.createDecipheriv('chacha20-poly1305', key, Buffer.from(iv, 'hex'), { authTagLength: 16 });
 
 		decipher.setAuthTag(Buffer.from(tag, 'hex'));
 
